@@ -1,13 +1,8 @@
-import microbit
-
 # (c) IDWizard 2017
 # MIT License.
 
-microbit.display.off()
-
-LOW = 0
-HIGH = 1
-FULL_ROTATION = int(4075.7728395061727 / 8) # http://www.jangeox.be/2013/10/stepper-motor-28byj-48_25.html
+LOW = const(0)
+HIGH = const(1)
 
 HALF_STEP = [
     [LOW, LOW, LOW, HIGH],
@@ -21,18 +16,28 @@ HALF_STEP = [
 ]
 
 FULL_STEP = [
- [HIGH, LOW, HIGH, LOW],
- [LOW, HIGH, HIGH, LOW],
- [LOW, HIGH, LOW, HIGH],
- [HIGH, LOW, LOW, HIGH]
+    [HIGH, LOW, HIGH, LOW],
+    [LOW, HIGH, HIGH, LOW],
+    [LOW, HIGH, LOW, HIGH],
+    [HIGH, LOW, LOW, HIGH]
 ]
+
+WAVE_STEP = [
+    [HIGH, LOW, LOW, LOW],
+    [LOW, HIGH, LOW, LOW],
+    [LOW, LOW, HIGH, LOW],
+    [LOW, LOW, LOW, HIGH]
+]
+
 
 class Command():
     """Tell a stepper to move X many steps in direction"""
+
     def __init__(self, stepper, steps, direction=1):
         self.stepper = stepper
         self.steps = steps
         self.direction = direction
+
 
 class Driver():
     """Drive a set of motors, each with their own commands"""
@@ -40,7 +45,7 @@ class Driver():
     @staticmethod
     def run(commands):
         """Takes a list of commands and interleaves their step calls"""
-        
+
         # Work out total steps to take
         max_steps = sum([c.steps for c in commands])
 
@@ -52,43 +57,52 @@ class Driver():
                     command.stepper.step(1, command.direction)
                     command.steps -= 1
                     count += 1
-        
-class Stepper():
+
+
+class StepperBase():
+    """Base class to define Stepper classes for different boards."""
+
     def __init__(self, mode, pin1, pin2, pin3, pin4, delay=2):
         self.mode = mode
-        self.pin1 = pin1
-        self.pin2 = pin2
-        self.pin3 = pin3
-        self.pin4 = pin4
+        self.pins = [pin1, pin2, pin3, pin4]
         self.delay = delay  # Recommend 10+ for FULL_STEP, 1 is OK for HALF_STEP
-        
+        self.current_step = 0
+
         # Initialize all to 0
         self.reset()
-        
+
+    def _set_pin(self, pin, value):
+        pass
+
+    def _wait(self):
+        pass
+
     def step(self, count, direction=1):
-        """Rotate count steps. direction = -1 means backwards"""
-        for x in range(count):
-            for bit in self.mode[::direction]:
-                self.pin1.write_digital(bit[0]) 
-                self.pin2.write_digital(bit[1]) 
-                self.pin3.write_digital(bit[2]) 
-                self.pin4.write_digital(bit[3]) 
-                microbit.sleep(self.delay)
+        """
+        step Rotate the stepper motor
+
+        Rotates the motor by the number of steps given. The size of the step is
+        determined by the motor itself and the selected mode.
+
+        Args:
+            count (int): Number of steps to move, if negative in the opposite
+                direction of the given direction (-1 step backward == 1 forward).
+            direction (int, optional): Defaults to 1. Direction to move, either
+                1 for forwards, or -1 for backwards.
+        """
+
+        if count < 0:
+            direction = -direction
+            count = -count
+        for _ in range(count):
+            self.current_step += direction
+            bit = self.mode[self.current_step % len(self.mode)]
+            for p, v in enumerate(bit):
+                self._set_pin(p, v)
+            self._wait()
         self.reset()
-        
+
     def reset(self):
         # Reset to 0, no holding, these are geared, you can't move them
-        self.pin1.write_digital(0) 
-        self.pin2.write_digital(0) 
-        self.pin3.write_digital(0) 
-        self.pin4.write_digital(0) 
-
-if __name__ == '__main__':
-
-    s1 = Stepper(HALF_STEP, microbit.pin16, microbit.pin15, microbit.pin14, microbit.pin13, delay=5)    
-    s2 = Stepper(HALF_STEP, microbit.pin6, microbit.pin5, microbit.pin4, microbit.pin3, delay=5)   
-    #s1.step(FULL_ROTATION)
-    #s2.step(FULL_ROTATION)
-
-    runner = Driver()
-    runner.run([Command(s1, FULL_ROTATION, 1), Command(s2, FULL_ROTATION/2, -1)])
+        for p in range(4):
+            self._set_pin(p, 0)
