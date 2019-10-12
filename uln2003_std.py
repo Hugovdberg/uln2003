@@ -1,5 +1,5 @@
-"""Implementation for the ULN2003 using the Micropython.org pyboard"""
-import pyb
+"""Implementation for the ULN2003 using the MicroPython libraries"""
+import utime
 from uln2003 import *
 
 
@@ -8,4 +8,4 @@ class Stepper(StepperBase):
         self.pins[pin].value(value)
 
     def _wait(self):
-        pyb.delay(self.delay)
+        utime.sleep_ms(self.delay)
